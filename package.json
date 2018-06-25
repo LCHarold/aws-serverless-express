@@ -73,10 +73,7 @@
     "examples/*/node_modules"
   ],
   "jest": {
-    "collectCoverageFrom": [
-      "index.js",
-      "middleware.js"
-    ]
+    "collectCoverageFrom": ["src/*"]
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^6.1.0",
@@ -101,7 +98,7 @@
   },
   "scripts": {
     "test": "jest",
-    "test-watch": "jest --watch",
+    "test:watch": "jest --watch",
     "coverage": "jest --coverage",
     "cz": "git-cz",
     "release": "semantic-release",

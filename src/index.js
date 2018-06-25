@@ -21,6 +21,13 @@ const isType = require('type-is')
 function getPathWithQueryStringParams (event) {
   return url.format({ pathname: event.path, query: event.queryStringParameters })
 }
+function getEventBody (event) {
+  return Buffer.from(event.body, event.isBase64Encoded ? 'base64' : 'utf8')
+}
+
+function clone (json) {
+  return JSON.parse(JSON.stringify(json))
+}
 
 function getContentType (params) {
   // only compare mime type; ignore encoding part
@@ -32,11 +39,18 @@ function isContentTypeBinaryMimeType (params) {
 }
 
 function mapApiGatewayEventToHttpRequest (event, context, socketPath) {
-  const headers = event.headers || {} // NOTE: Mutating event.headers; prefer deep clone of event.headers
-  const eventWithoutBody = Object.assign({}, event)
-  delete eventWithoutBody.body
+  const headers = Object.assign({}, event.headers)
 
-  headers['x-apigateway-event'] = encodeURIComponent(JSON.stringify(eventWithoutBody))
+  // NOTE: API Gateway is not setting Content-Length header on requests even when they have a body
+  if (event.body && !headers['Content-Length']) {
+    const body = getEventBody(event)
+    headers['Content-Length'] = Buffer.byteLength(body)
+  }
+
+  const clonedEventWithoutBody = clone(event)
+  delete clonedEventWithoutBody.body
+
+  headers['x-apigateway-event'] = encodeURIComponent(JSON.stringify(clonedEventWithoutBody))
   headers['x-apigateway-context'] = encodeURIComponent(JSON.stringify(context))
 
   return {
@@ -119,13 +133,12 @@ function forwardLibraryErrorResponseToApiGateway (server, error, context) {
 function forwardRequestToNodeServer (server, event, context) {
   try {
     const requestOptions = mapApiGatewayEventToHttpRequest(event, context, getSocketPath(server._socketPathSuffix))
-    const req = http.request(requestOptions, (response, body) => forwardResponseToApiGateway(server, response, context))
-    if (event.body) {
-      if (event.isBase64Encoded) {
-        event.body = Buffer.from(event.body, 'base64')
-      }
+    const req = http.request(requestOptions, (response) => forwardResponseToApiGateway(server, response, context))
 
-      req.write(event.body)
+    if (event.body) {
+      const body = getEventBody(event)
+
+      req.write(body)
     }
 
     req.on('error', (error) => forwardConnectionErrorResponseToApiGateway(server, error, context))
