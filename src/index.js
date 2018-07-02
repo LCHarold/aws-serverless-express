@@ -39,7 +39,7 @@ function mapApiGatewayEventToHttpRequest (event, context, socketPath) {
   headers['x-apigateway-event'] = encodeURIComponent(JSON.stringify(eventWithoutBody))
   headers['x-apigateway-context'] = encodeURIComponent(JSON.stringify(context))
 
-  return {
+  const result = {
     method: event.httpMethod,
     path: getPathWithQueryStringParams(event),
     headers,
@@ -49,6 +49,16 @@ function mapApiGatewayEventToHttpRequest (event, context, socketPath) {
     // hostname: headers.Host, // Alias for host
     // port: headers['X-Forwarded-Port']
   }
+
+  const proto = 'X-Forwarded-Proto'
+  if (headers && (headers[proto] || headers[proto.toLowerCase()])) {
+    const isSecure = (headers[proto] === 'https' || headers[proto.toLowerCase()] === 'https')
+    if (isSecure) {
+      result.protocol = 'https:'
+    }
+  }
+
+  return result
 }
 
 function forwardResponseToApiGateway (server, response, context) {
